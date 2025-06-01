@@ -1,9 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Calculator, Lightbulb, User, TrendingUp, FileCheck } from 'lucide-react';
+import { Send, Calculator, Lightbulb, User, TrendingUp, FileCheck, Key, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -28,7 +29,11 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiKeyInput, setShowApiKeyInput] = useState(!apiKey);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,8 +49,72 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
     { id: 'auditor', name: 'Auditor', icon: User, description: 'Financial Review' }
   ];
 
+  const getPersonaPrompt = (persona: string) => {
+    const prompts = {
+      ca: "You are FinMentor, a highly skilled and friendly Chartered Accountant. Focus on Indian tax laws, GST, compliance, and accounting. Explain complex concepts with analogies and real-life examples. Be conversational and witty.",
+      advisor: "You are FinMentor in Investment Advisor mode. Focus on mutual funds, SIP, portfolio management, and investment strategies for Indian markets. Use simple explanations and practical examples.",
+      auditor: "You are FinMentor in Auditor mode. Focus on financial review, audit processes, compliance checks, and financial statement analysis. Be thorough but friendly in your explanations."
+    };
+    return prompts[persona as keyof typeof prompts] || prompts.ca;
+  };
+
+  const handleApiKeySubmit = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem('gemini_api_key', apiKey);
+      setShowApiKeyInput(false);
+      toast({
+        title: "API Key Saved",
+        description: "Your Gemini API key has been saved locally and FinMentor is ready to chat!",
+      });
+    }
+  };
+
+  const callGeminiAPI = async (message: string) => {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `${getPersonaPrompt(currentPersona)}\n\nUser question: ${message}`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.candidates[0]?.content?.parts[0]?.text || "Sorry, I couldn't generate a response.";
+    } catch (error) {
+      console.error('Gemini API Error:', error);
+      throw error;
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
+
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please enter your Gemini API key first.",
+        variant: "destructive"
+      });
+      setShowApiKeyInput(true);
+      return;
+    }
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -58,25 +127,35 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
     setInputMessage('');
     setIsLoading(true);
 
-    // Simulate AI response (replace with actual Gemini API call)
-    setTimeout(() => {
-      const responses = [
-        "Great question! Let me break this down for you...",
-        "As your friendly CA, here's what I'd recommend...",
-        "That's a smart financial move! Here's how it works...",
-        "Let me explain this in simple terms with an example..."
-      ];
+    try {
+      const aiResponse = await callGeminiAPI(inputMessage);
       
-      const aiResponse: Message = {
+      const responseMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: responses[Math.floor(Math.random() * responses.length)] + " (Note: Connect Gemini API for real responses)",
+        content: aiResponse,
         isUser: false,
         timestamp: new Date()
       };
       
-      setMessages(prev => [...prev, aiResponse]);
+      setMessages(prev => [...prev, responseMessage]);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to get response from Gemini API. Please check your API key.",
+        variant: "destructive"
+      });
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Sorry, I encountered an error. Please check your API key and try again.",
+        isUser: false,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -88,9 +167,60 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
 
   return (
     <div className="flex flex-col h-full">
+      {/* API Key Input Section */}
+      {showApiKeyInput && (
+        <div className="p-4 border-b border-gray-700 bg-gray-800">
+          <div className="flex items-center gap-2 mb-2">
+            <Key size={16} className="text-purple-400" />
+            <h3 className="text-sm font-medium text-gray-300">Enter your Gemini API Key</h3>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Enter your Gemini API key..."
+                className="bg-gray-700 border-gray-600 text-white pr-10"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+              </Button>
+            </div>
+            <Button onClick={handleApiKeySubmit} className="bg-purple-600 hover:bg-purple-700">
+              Save
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            Your API key is stored locally in your browser. Get one from{' '}
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
+              Google AI Studio
+            </a>
+          </p>
+        </div>
+      )}
+
       {/* Persona Selector */}
       <div className="p-4 border-b border-gray-700">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Choose your FinMentor mode:</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-300">Choose your FinMentor mode:</h3>
+          {apiKey && !showApiKeyInput && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowApiKeyInput(true)}
+              className="text-gray-400 hover:text-white"
+            >
+              <Key size={14} className="mr-1" />
+              API Key
+            </Button>
+          )}
+        </div>
         <div className="flex gap-2">
           {personas.map((persona) => (
             <Button
@@ -128,7 +258,7 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
                   : 'bg-gray-700 text-gray-100'
               }`}
             >
-              <p className="text-sm">{message.content}</p>
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               <p className="text-xs opacity-75 mt-1">
                 {message.timestamp.toLocaleTimeString()}
               </p>
