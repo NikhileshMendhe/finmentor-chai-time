@@ -29,9 +29,7 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showApiKeyInput, setShowApiKeyInput] = useState(!apiKey);
+  const apiKey = 'AIzaSyAVmw-2N9ZsX_auX4RkMglJ3RXgDHLM2XE';
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -51,22 +49,11 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
 
   const getPersonaPrompt = (persona: string) => {
     const prompts = {
-      ca: "You are FinMentor, a highly skilled and friendly Chartered Accountant. Focus on Indian tax laws, GST, compliance, and accounting. Explain complex concepts with analogies and real-life examples. Be conversational and witty.",
-      advisor: "You are FinMentor in Investment Advisor mode. Focus on mutual funds, SIP, portfolio management, and investment strategies for Indian markets. Use simple explanations and practical examples.",
-      auditor: "You are FinMentor in Auditor mode. Focus on financial review, audit processes, compliance checks, and financial statement analysis. Be thorough but friendly in your explanations."
+      ca: "You are FinMentor, a highly skilled and friendly Chartered Accountant. You specialize in Indian tax laws, GST, compliance, and accounting. Explain complex concepts with analogies and real-life examples. Be conversational, witty, and easy to understand—like a smart CA friend who explains Form 16 over chai. Use emojis occasionally and keep responses under 200 words unless detailed explanation is needed.",
+      advisor: "You are FinMentor in Investment Advisor mode. You focus on mutual funds, SIP, portfolio management, and investment strategies for Indian markets. Use simple explanations and practical examples. Be like a knowledgeable friend who makes investing feel approachable. Use emojis and keep responses conversational and under 200 words.",
+      auditor: "You are FinMentor in Auditor mode. You focus on financial review, audit processes, compliance checks, and financial statement analysis. Be thorough but friendly in explanations. Think of yourself as a detail-oriented friend who makes auditing less scary. Use emojis occasionally and keep responses under 200 words unless detailed analysis is needed."
     };
     return prompts[persona as keyof typeof prompts] || prompts.ca;
-  };
-
-  const handleApiKeySubmit = () => {
-    if (apiKey.trim()) {
-      localStorage.setItem('gemini_api_key', apiKey);
-      setShowApiKeyInput(false);
-      toast({
-        title: "API Key Saved",
-        description: "Your Gemini API key has been saved locally and FinMentor is ready to chat!",
-      });
-    }
   };
 
   const callGeminiAPI = async (message: string) => {
@@ -106,16 +93,6 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
-    if (!apiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please enter your Gemini API key first.",
-        variant: "destructive"
-      });
-      setShowApiKeyInput(true);
-      return;
-    }
-
     const newMessage: Message = {
       id: Date.now().toString(),
       content: inputMessage,
@@ -141,13 +118,13 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to get response from Gemini API. Please check your API key.",
+        description: "Failed to get response from Gemini API. Please try again.",
         variant: "destructive"
       });
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "Sorry, I encountered an error. Please check your API key and try again.",
+        content: "Sorry, I encountered an error. Please try again in a moment.",
         isUser: false,
         timestamp: new Date()
       };
@@ -167,59 +144,14 @@ const FinMentorChat: React.FC<FinMentorChatProps> = ({ onPersonaChange, currentP
 
   return (
     <div className="flex flex-col h-full">
-      {/* API Key Input Section */}
-      {showApiKeyInput && (
-        <div className="p-4 border-b border-gray-700 bg-gray-800">
-          <div className="flex items-center gap-2 mb-2">
-            <Key size={16} className="text-purple-400" />
-            <h3 className="text-sm font-medium text-gray-300">Enter your Gemini API Key</h3>
-          </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                type={showApiKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter your Gemini API key..."
-                className="bg-gray-700 border-gray-600 text-white pr-10"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-              </Button>
-            </div>
-            <Button onClick={handleApiKeySubmit} className="bg-purple-600 hover:bg-purple-700">
-              Save
-            </Button>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">
-            Your API key is stored locally in your browser. Get one from{' '}
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">
-              Google AI Studio
-            </a>
-          </p>
-        </div>
-      )}
-
       {/* Persona Selector */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-gray-300">Choose your FinMentor mode:</h3>
-          {apiKey && !showApiKeyInput && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowApiKeyInput(true)}
-              className="text-gray-400 hover:text-white"
-            >
-              <Key size={14} className="mr-1" />
-              API Key
-            </Button>
-          )}
+          <div className="flex items-center gap-2 text-green-400 text-xs">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            Connected to Gemini AI
+          </div>
         </div>
         <div className="flex gap-2">
           {personas.map((persona) => (
